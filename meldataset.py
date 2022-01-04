@@ -116,9 +116,10 @@ class MelDataset(torch.utils.data.Dataset):
             if not self.fine_tuning:
                 audio = normalize(audio) * 0.95
             self.cached_wav = audio
-            if sampling_rate != self.sampling_rate:
-                raise ValueError("{} SR doesn't match target {} SR".format(
-                    sampling_rate, self.sampling_rate))
+            # comment sample rate check for debuging purpose
+            # if sampling_rate != self.sampling_rate:
+            #     raise ValueError("{} SR doesn't match target {} SR".format(
+            #         sampling_rate, self.sampling_rate))
             self._cache_ref_count = self.n_cache_reuse
         else:
             audio = self.cached_wav

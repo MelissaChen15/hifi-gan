@@ -23,8 +23,8 @@ def main():
     print('Extracting Mels..')
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_wavs_dir', default='test_files')
-    parser.add_argument('--output_dir', default='mels_hifigan')
+    parser.add_argument('--input_wavs_dir', default='/home/dotdot/data/ASVspoof2019_LA/ASVspoof2019_LA_train/wav')
+    parser.add_argument('--output_dir', default='/home/dotdot/data/ASVspoof2019_LA/ASVspoof2019_LA_train/mels_hifigan')
     parser.add_argument('--checkpoint_file', required=True)
 
     a = parser.parse_args()

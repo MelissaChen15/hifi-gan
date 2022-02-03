@@ -14,7 +14,7 @@ from torch.distributed import init_process_group
 from torch.nn.parallel import DistributedDataParallel
 from env import AttrDict, build_env
 from meldataset import MelDataset, mel_spectrogram, get_dataset_filelist
-from models import MultiPeriodDiscriminator4Spoof, MultiScaleDiscriminator4Spoof, feature_loss, discriminator_loss4spoof
+from models import MultiPeriodDiscriminator4Spoof, MultiScaleDiscriminator4Spoof, feature_loss,feature_loss4spoof, discriminator_loss4spoof
 from utils import plot_spectrogram, scan_checkpoint, load_checkpoint, save_checkpoint
 import numpy as np
 
@@ -110,6 +110,7 @@ def train(rank, a, h):
                               batch_size=h.batch_size,
                               pin_memory=True,
                               drop_last=True)
+                    
 
     if rank == 0:
         validset = MelDataset(validation_filelist, h.segment_size, h.n_fft, h.num_mels,
@@ -145,7 +146,7 @@ def train(rank, a, h):
                 x = torch.autograd.Variable(x.to(device, non_blocking=True))
                 y = torch.autograd.Variable(y.to(device, non_blocking=True))
                 y_mel = torch.autograd.Variable(y_mel.to(device, non_blocking=True))
-                y = y.unsqueeze(1)
+                y = y.unsqueeze(1) # (b, 1, samples) torch.Size([16, 1, 8192])
 
                 # y_g_hat = generator(x)
                 # y_g_hat_mel = mel_spectrogram(y_g_hat.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate, h.hop_size, h.win_size,
@@ -156,16 +157,29 @@ def train(rank, a, h):
                 # MPD
                 y_df_hat_r, fmap_df_r = mpd(y)
                 loss_disc_f, losses_disc_f_r = discriminator_loss4spoof(y_df_hat_r)
+                feature_loss_f = feature_loss4spoof(fmap_df_r)
+               
     
 
                 # MSD
                 y_ds_hat_r, fmap_ds_r = msd(y)
                 loss_disc_s, losses_disc_s_r = discriminator_loss4spoof(y_ds_hat_r)
+                feature_loss_s = feature_loss4spoof(fmap_ds_r)
+                exit(1)
 
                 loss_disc_all = loss_disc_s + loss_disc_f
+
+                # print(len(feature_loss_f), len(feature_loss_s)) #30 24
+                # exit(1)
+
                 
                 # print(get_shape(y_df_hat_r), get_shape(fmap_df_r), get_shape(y_ds_hat_r), get_shape(fmap_ds_r))
-                # (5,) (5, 6) (3,) (3, 8) (#discs, #conv_layers) feature map 包含了最后的x输出
+                # (5,) (5, 6) (3,) (3, 8) (#discs, #conv_layers) feature map 包含了最后的x输出(flatten前)
+                # print(fmap_ds_r[1][5].shape) #torch.Size([1, 1, 51, 2])  #torch.Size([1, 1024, 128])
+                # exit(1)
+
+                
+                # (5, 102), (3, 128)
 
                 # print(y_df_hat_r[0].shape, fmap_df_r[0][0].shape,y_ds_hat_r[0].shape, fmap_ds_r[0][0].shape)
                 #torch.Size([1, 102]) torch.Size([1, 32, 1366, 2]) torch.Size([1, 128]) torch.Size([1, 128, 8192])
@@ -173,11 +187,12 @@ def train(rank, a, h):
                 # print(losses_disc_f_r, losses_disc_s_r)
 
                 
-                # disc_losses.append([filename[0], loss_disc_s.cpu().detach().numpy() , loss_disc_f.cpu().detach().numpy() , loss_disc_all.cpu().detach().numpy()])
-                label = int("bonafide" in str(filename[0]).split("/")[7])
-                info =  losses_disc_f_r + losses_disc_s_r + [label]
+                utt = filename[0].split("/")[7]
+                label = int("bonafide" in utt)
+                info =  losses_disc_f_r + losses_disc_s_r + [label] + [utt.split(".")[0]]
                 disc_losses.append(info)
-                if i % 100 == 0: print(i)
+
+                if i % 1000 == 0: print(str(i) + "/", str(len(train_loader)))
 
                 # loss_disc_all.backward()
                 # optim_d.step()
@@ -264,8 +279,8 @@ def train(rank, a, h):
             print(filename, err)
             pass
 
-        np.save("disc_losses.npy", disc_losses)
-        exit(1)
+        # np.save("disc_loss_eval.npy", disc_losses)
+        # exit(1)
         # scheduler_g.step()
         scheduler_d.step()
         
@@ -277,14 +292,13 @@ def main():
     print('Initializing Training Process..')
 
     parser = argparse.ArgumentParser()
-
     parser.add_argument('--group_name', default=None)
     parser.add_argument('--input_wavs_dir', default='/home/dotdot/data/ASVspoof2019_LA/ASVspoof2019_LA_eval/wav')
     parser.add_argument('--input_mels_dir', default='/home/dotdot/data/ASVspoof2019_LA/ASVspoof2019_LA_eval/mels_hifigan')
-    parser.add_argument('--input_training_file', default='ASVSpoof19LA/training.txt')
+    parser.add_argument('--input_training_file', default='ASVSpoof19LA/eval.txt')
     parser.add_argument('--input_validation_file', default='ASVSpoof19LA/validation.txt')
-    parser.add_argument('--checkpoint_path', default='checkpoints/Universal_V1')
-    parser.add_argument('--config', default='checkpoints/Universal_V1/config4spoof.json')
+    parser.add_argument('--checkpoint_path', default='checkpoints/16k')
+    parser.add_argument('--config', default='checkpoints/16k/config.json')
     parser.add_argument('--training_epochs', default=3100, type=int)
     parser.add_argument('--stdout_interval', default=5, type=int)
     parser.add_argument('--checkpoint_interval', default=5000, type=int)

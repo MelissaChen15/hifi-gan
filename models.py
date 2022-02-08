@@ -263,7 +263,7 @@ def feature_loss4spoof(fmap_r):
         for rl in dr:  # df : (b, x, x, x) ds: (b, x, x)
             if len(rl.shape) == 4: loss.append(torch.mean(torch.abs(rl), (1, 2, 3)))
             if len(rl.shape) == 3: loss.append(torch.mean(torch.abs(rl), (1, 2)))
-
+    del rl, dr; torch.cuda.empty_cache()
     return torch.stack(loss)
 
 def discriminator_loss(disc_real_outputs, disc_generated_outputs):
@@ -308,6 +308,7 @@ class MultiPeriodDiscriminator4Spoof(torch.nn.Module):
             y_d_r, fmap_r = d(y)
             y_d_rs.append(y_d_r)
             fmap_rs.append(fmap_r)
+            del y_d_r, fmap_r;  torch.cuda.empty_cache()
 
         return y_d_rs, fmap_rs
 
@@ -333,6 +334,8 @@ class MultiScaleDiscriminator4Spoof(torch.nn.Module):
             y_d_r, fmap_r = d(y)
             y_d_rs.append(y_d_r)
             fmap_rs.append(fmap_r)
+            del y_d_r, fmap_r;  torch.cuda.empty_cache()
+
 
         return y_d_rs, fmap_rs
 
